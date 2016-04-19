@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
+
+APP="$1"; IMAGE="dokku/$APP"
+SSL="$DOKKU_ROOT/$APP/tls"
+
+
+echo "-----> Attempting to copy /tls files into container"
+
+if [[ -f "$SSL/server.crt" && -f "$SSL/server.key" ]]; then
+  echo "-----> Creating /tls folder in docker image"
+  id=$(docker run -i -a stdin $IMAGE /bin/bash -c "mkdir -p /tls")
+  test $(docker wait $id) -eq 0
+  docker commit $id $IMAGE > /dev/null
+
+  echo "-----> Adding server.crt to /tls folder in docker image"
+  id=$(docker run -i -a stdin $IMAGE /bin/bash -c 'cat > /tls/server.crt' < $SSL/server.crt)
+  test $(docker wait $id) -eq 0
+  docker commit $id $IMAGE > /dev/null
+
+  echo "-----> Adding server.key to /tls folder in docker image"
+  id=$(docker run -i -a stdin $IMAGE /bin/bash -c 'cat > /tls/server.key' < $SSL/server.key)
+  test $(docker wait $id) -eq 0
+  docker commit $id $IMAGE > /dev/null
+else
+  echo "-----> /tls files not detected. Missing either $SSL/server.crt or $SSL/server.key"
+fi
